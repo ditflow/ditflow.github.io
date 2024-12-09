@@ -1,0 +1,937 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Video Motion Transfer with Diffusion Transformers</title>
+    <script src="assets/prompts.js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; line-height: 1.6; }
+        .page-container { max-width: 1200px; margin: 0 auto; padding: 20px; }
+        .page-container img {
+            width: 100%; /* Fill the container width */
+            height: auto; /* Maintain aspect ratio */
+        }
+        .results-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
+        .video-container {
+            width: 100%;
+            margin-bottom: 5px; /* Reduced from 10px */
+        }
+        video { max-width: 100%; height: auto; }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { padding: 10px; text-align: center; }
+        h1, h2 { text-align: center; }
+        .back-to-top {
+            position: fixed;
+            right: 40px;
+            bottom: 40px;
+            height: 60px;
+            width: 140px;
+            font-size: 18px;
+            background-color: #ffffff;
+            border: 2px solid #333;
+            border-radius: 8px;
+            cursor: pointer;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+            transition: all 0.3s ease;
+            z-index: 1000;
+        }
+        .back-to-top:hover {
+            background-color: #f0f0f0;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+            transform: translateY(-2px);
+        }
+        .back-to-top a {
+            text-decoration: none;
+            color: #333;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 100%;
+            height: 100%;
+            font-weight: bold;
+        }
+        /* Previous styles remain the same */
+        .prompts-container {
+            margin: 20px 0;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 8px;
+        }
+        .prompts-toggle {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            margin-bottom: 10px;
+        }
+        .prompts-toggle:hover {
+            background: #0056b3;
+        }
+        .prompts-content {
+            display: none;
+            max-height: 500px;
+            overflow-y: auto;
+            background: white;
+            padding: 20px;
+            border-radius: 4px;
+            border: 1px solid #dee2e6;
+        }
+        .prompt-category {
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #dee2e6;
+        }
+        .prompt-category h3 {
+            color: #333;
+            margin-bottom: 10px;
+        }
+        .prompt-type {
+            margin: 5px 0;
+            padding-left: 20px;
+            color: #555;
+        }
+        .prompt-type span {
+            font-weight: bold;
+            color: #333;
+        }
+
+        .error-message {
+            color: #721c24;
+            background-color: #f8d7da;
+            border: 1px solid #f5c6cb;
+            padding: 10px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+        /* Video styles */
+        .video-table {
+            width: 100%;
+            table-layout: fixed; /* This ensures equal column widths */
+            border-spacing: 20px;
+            border-collapse: separate;
+            /* text-align: right; */
+        }
+        
+        .video-cell {
+            width: 33.33%; /* Each column takes exactly one-third */
+            vertical-align: top;
+            padding: 2px;
+        }
+        
+        .video-container {
+            width: 100%;
+            margin-bottom: 10px;
+        }
+        
+        .video-container video {
+            width: 100%;
+            height: auto;
+            border-radius: 4px;
+            background: black;
+        }
+        
+        .prompt-text {
+            font-size: 14px;
+            color: #555;
+            padding: 0; /* Removed padding */
+            margin-top: 0px; /* Reduced from 10px */
+            font-style: italic;
+            text-align: center;
+            position: relative;
+        }
+
+        .prompt-text span {
+            font-weight: bold;
+        }
+
+        .prompt-text .tooltip-text {
+            visibility: hidden;
+            width: 400px;
+            background-color: black;
+            color: white;
+            text-align: left;
+            border-radius: 6px;
+            padding: 10px;
+            position: absolute;
+            z-index: 1;
+            top: 100%;
+            left: 50%;
+            transform: translateX(-50%);
+            margin-top: 10px;
+            opacity: 0;
+            transition: visibility 0s, opacity 0.5s linear;
+        }
+
+        .prompt-text:hover .tooltip-text {
+            visibility: visible;
+            opacity: 1;
+        }
+        
+        .column-header {
+            font-size: 18px;
+            font-weight: bold;
+            color: #333;
+            text-align: center;
+            padding-bottom: 15px;
+        }
+    </style>
+</head>
+<body>
+    <button class="back-to-top" type="button">
+        <a href="#top">Back to top</a>
+    </button>
+
+    <div class="page-container">
+        <h1>Video Motion Transfer with Diffusion Transformers</h1>
+        <h2>Supplementary material</h2>
+        
+        
+        <!-- Navigation -->
+        <h4>Press spacebar to <span style="color: red;">pause/unpause</span> videos</h4>
+        <h4>Press 'r' to reset all videos, then spacebar to play them</h4>
+        <h4>Hover over bold prompts to see the full text used</h4>
+        <h3>Sections</h3>
+        <ul>
+            <li><a href="#5b-results">CogVideoX-5B results</a></li>
+            <li><a href="#5b-zeroshotresults">Zero-shot CogVideoX-5B results</a></li>
+            <li><a href="#baseline">Baseline comparison</a></li>
+            <li><a href="#ablation">Ablation results</a></li>
+            <li><a href="#2b-results">CogVideoX-2B results</a></li>
+            <li><a href="#dataset">Dataset</a></li>
+        </ul>
+
+        <!-- Results sections -->
+        <section id="5b-results">
+            <h2>CogVideoX-5B results (full videos from Figure 1 and 4 + more)</h2>
+            <table class="video-table">
+                <tr>
+                    <td class="video-cell">
+                        <div class="column-header">Reference video</div>
+                        <div class="video-container">
+                            <video controls autoplay loop muted playsinline class="video-item">
+                                <source src="assets/videos/5b_outputs/car-roundabout/car-roundabout_ref.mp4" type="video/mp4">
+                            </video>
+                        </div>
+                    </td>
+                    <td class="video-cell">
+                        <div class="column-header">Generation 1</div>
+                        <div class="video-container">
+                            <video controls autoplay loop muted playsinline class="video-item">
+                                <source src="assets/videos/5b_outputs/car-roundabout/car-roundabout_lion.mp4" type="video/mp4">
+                            </video>
+                        </div>
+                        <div class="prompt-text">
+                            A lion walking through a busy market
+                        </div>
+                    </td>
+                    <td class="video-cell">
+                        <div class="column-header">Generation 2</div>
+                        <div class="video-container">
+                            <video controls autoplay loop muted playsinline class="video-item">
+                                <source src="assets/videos/5b_outputs/car-roundabout/car-roundabout_bike.mp4" type="video/mp4">
+                            </video>
+                        </div>
+                        <div class="prompt-text">
+                            Motorbiker driving around moonlit sand dunes
+                        </div>
+                    </td>
+                </tr>
+
+                <!-- Second Row -->
+                <tr>
+                    <td class="video-cell">
+                        <div class="video-container">
+                            <video controls autoplay loop muted playsinline class="video-item">
+                                <source src="assets/videos/5b_outputs/bmx-trees/bmx-trees_ref.mp4" type="video/mp4">
+                            </video>
+                        </div>
+                    </td>
+                    <td class="video-cell">
+                        <div class="video-container">
+                            <video controls autoplay loop muted playsinline class="video-item">
+                                <source src="assets/videos/5b_outputs/bmx-trees/bmx-trees_leopard.mp4" type="video/mp4">
+                            </video>
+                        </div>
+                        <div class="prompt-text">
+                            Leopard running up a snowy hill in a forest
+                        </div>
+                    </td>
+                    <td class="video-cell">
+                        <div class="video-container">
+                            <video controls autoplay loop muted playsinline class="video-item">
+                                <source src="assets/videos/5b_outputs/bmx-trees/bmx-trees_hiker.mp4" type="video/mp4">
+                            </video>
+                        </div>
+                        <div class="prompt-text">
+                            Hiker climbing upwards on a mountain peak
+                        </div>
+                    </td>
+                </tr>
+
+                <!-- Third Row -->
+                <tr>
+                    <td class="video-cell">
+                        <div class="video-container">
+                            <video controls autoplay loop muted playsinline class="video-item">
+                                <source src="assets/videos/5b_outputs/mtb-race/mtb-race_ref.mp4" type="video/mp4">
+                            </video>
+                        </div>
+                    </td>
+                    <td class="video-cell">
+                        <div class="video-container">
+                            <video controls autoplay loop muted playsinline class="video-item">
+                                <source src="assets/videos/5b_outputs/mtb-race/mtb-race_motorcycle.mp4" type="video/mp4">
+                            </video>
+                        </div>
+                        <div class="prompt-text">
+                            Driving motorcycle through cityscape, first person perspective
+                        </div>
+                    </td>
+                    <td class="video-cell">
+                        <div class="video-container">
+                            <video controls autoplay loop muted playsinline class="video-item">
+                                <source src="assets/videos/5b_outputs/mtb-race/mtb-race_drone.mp4" type="video/mp4">
+                            </video>
+                        </div>
+                        <div class="prompt-text">
+                            Drone footage of a castle corridor interior with tall statues
+                        </div>
+                    </td>
+                </tr>
+
+                <!-- Fourth Row -->
+                <tr>
+                    <td class="video-cell">
+                        <div class="video-container">
+                            <video controls autoplay loop muted playsinline class="video-item">
+                                <source src="assets/videos/5b_outputs/blackswan/blackswan_ref.mp4" type="video/mp4">
+                            </video>
+                        </div>
+                    </td>
+                    <td class="video-cell">
+                        <div class="video-container">
+                            <video controls autoplay loop muted playsinline class="video-item">
+                                <source src="assets/videos/5b_outputs/blackswan/blackswan_tophat.mp4" type="video/mp4">
+                            </video>
+                        </div>
+                        <div class="prompt-text">
+                            A duck with a tophat swimming in a river
+                        </div>
+                    </td>
+                    <td class="video-cell">
+                        <div class="video-container">
+                            <video controls autoplay loop muted playsinline class="video-item">
+                                <source src="assets/videos/5b_outputs/blackswan/blackswan_paperboat.mp4" type="video/mp4">
+                            </video>
+                        </div>
+                        <div class="prompt-text">
+                            A paper boat floating in a river
+                        </div>
+                    </td>
+                </tr>
+
+                <!-- Fifth Row -->
+                <tr>
+                    <td class="video-cell">
+                        <div class="video-container">
+                            <video controls autoplay loop muted playsinline class="video-item">
+                                <source src="assets/videos/5b_outputs/rallye/rallye_ref.mp4" type="video/mp4">
+                            </video>
+                        </div>
+                    </td>
+                    <td class="video-cell">
+                        <div class="video-container">
+                            <video controls autoplay loop muted playsinline class="video-item">
+                                <source src="assets/videos/5b_outputs/rallye/rallye_firefighter.mp4" type="video/mp4">
+                            </video>
+                        </div>
+                        <div class="prompt-text">
+                            Firefighter running towards the camera away from a burning building
+                        </div>
+                    </td>
+                    <td class="video-cell">
+                        <div class="video-container">
+                            <video controls autoplay loop muted playsinline class="video-item">
+                                <source src="assets/videos/5b_outputs/rallye/rallye_panda.mp4" type="video/mp4">
+                            </video>
+                        </div>
+                        <div class="prompt-text">
+                            Panda charging towards the camera in a bamboo forest, low angle shot
+                        </div>
+                    </td>
+                </tr>
+
+                <!-- Sixth Row -->
+                <tr>
+                    <td class="video-cell">
+                        <div class="video-container">
+                            <video controls autoplay loop muted playsinline class="video-item">
+                                <source src="assets/videos/5b_outputs/longboard/longboard_ref.mp4" type="video/mp4">
+                            </video>
+                        </div>
+                    </td>
+                    <td class="video-cell">
+                        <div class="video-container">
+                            <video controls autoplay loop muted playsinline class="video-item">
+                                <source src="assets/videos/5b_outputs/longboard/longboard_longboard.mp4" type="video/mp4">
+                            </video>
+                        </div>
+                        <div class="prompt-text">
+                            Man longboarding past a forest, camera following behind
+                        </div>
+                    </td>
+                    <td class="video-cell">
+                        <div class="video-container">
+                            <video controls autoplay loop muted playsinline class="video-item">
+                                <source src="assets/videos/5b_outputs/longboard/longboard_snowboard.mp4" type="video/mp4">
+                            </video>
+                        </div>
+                        <div class="prompt-text">
+                            Man snowboarding down a passage in a snowy forest, camera following behind
+                        </div>
+                    </td>
+                </tr>
+            </table>
+            Note: Input to CogVideoX is actually 24 frames, but since it generates outputs with 21 frames, we output reference videos consistently to make it synchronous.
+        </section>
+        
+
+        <section id="5b-zeroshotresults">
+            <h2>Zero-shot CogVideoX-5B results</h2>
+            <table class="video-table">
+                <tr>
+                    <td class="video-cell">
+                        <div class="column-header">Reference video</div>
+                        <div class="video-container">
+                            <video controls autoplay loop muted playsinline class="video-item">
+                                <source src="assets/videos/5b_zeroshot/lucia/lucia_ref.mp4" type="video/mp4">
+                            </video>
+                        </div>
+                    </td>
+                    <td class="video-cell">
+                        <div class="column-header">Optimizing positional embedding</div>
+                        <div class="video-container">
+                            <video controls autoplay loop muted playsinline class="video-item">
+                                <source src="assets/videos/5b_zeroshot/lucia/lucia_opt_robot.mp4" type="video/mp4">
+                            </video>
+                        </div>
+                        <div class="prompt-text">
+                            Robot walking on a sidewalk in a cyberpunk-style city
+                        </div>
+                    </td>
+                    <td class="video-cell">
+                        <div class="column-header">Injecting positional embedding</div>
+                        <div class="video-container">
+                            <video controls autoplay loop muted playsinline class="video-item">
+                                <source src="assets/videos/5b_zeroshot/lucia/lucia_inject_astronaut.mp4" type="video/mp4">
+                            </video>
+                        </div>
+                        <div class="prompt-text">
+                            <span>Astronaut walking on moon</span>
+                            <div class="tooltip-text">
+                                An astronaut in a pristine white spacesuit, adorned with a reflective visor and mission patches, takes deliberate steps across the moon's desolate, cratered surface. The vast, dark expanse of space stretches infinitely above, dotted with distant stars. As the astronaut moves, the Earth hangs majestically in the sky, a vibrant blue and green sphere against the stark lunar landscape. Each step kicks up fine, gray lunar dust, creating a slow-motion effect in the low gravity.
+                            </div>
+                        </div>
+                    </td>
+                </tr>
+
+                <!-- Second Row -->
+                <tr>
+                    <td class="video-cell">
+                        <div class="video-container">
+                            <video controls autoplay loop muted playsinline class="video-item">
+                                <source src="assets/videos/5b_zeroshot/camel/camel_ref.mp4" type="video/mp4">
+                            </video>
+                        </div>
+                    </td>
+                    <td class="video-cell">
+                        <div class="video-container">
+                            <video controls autoplay loop muted playsinline class="video-item">
+                                <source src="assets/videos/5b_zeroshot/camel/camel_opt_car.mp4" type="video/mp4">
+                            </video>
+                        </div>
+                        <div class="prompt-text">
+                            A blue Sedan car turning into a driveway
+                        </div>
+                    </td>
+                    <td class="video-cell">
+                        <div class="video-container">
+                            <video controls autoplay loop muted playsinline class="video-item">
+                                <source src="assets/videos/5b_zeroshot/camel/camel_inject_camel.mp4" type="video/mp4">
+                            </video>
+                        </div>
+                        <div class="prompt-text">
+                            A camel walking in a zoo
+                        </div>
+                    </td>
+                </tr>
+
+                <!-- Third Row -->
+                <tr>
+                    <td class="video-cell">
+                        <div class="video-container">
+                            <video controls autoplay loop muted playsinline class="video-item">
+                                <source src="assets/videos/5b_zeroshot/lab-coat/lab-coat_ref.mp4" type="video/mp4">
+                            </video>
+                        </div>
+                    </td>
+                    <td class="video-cell">
+                        <div class="video-container">
+                            <video controls autoplay loop muted playsinline class="video-item">
+                                <source src="assets/videos/5b_zeroshot/lab-coat/lab-coat_opt_gorilla.mp4" type="video/mp4">
+                            </video>
+                        </div>
+                        <div class="prompt-text">
+                            Zoom into a gorilla wearing a lab coat on a field
+                        </div>
+                    </td>
+                    <td class="video-cell">
+                        <div class="video-container">
+                            <video controls autoplay loop muted playsinline class="video-item">
+                                <source src="assets/videos/5b_zeroshot/lab-coat/lab-coat_inject_lion.mp4" type="video/mp4">
+                            </video>
+                        </div>
+                        <div class="prompt-text">
+                            Zoom into a lion standing on a cliff looking towards us
+                        </div>
+                    </td>
+                </tr>
+            </table>
+        </section>
+
+        <section id="baseline">
+            <h2>Baseline comparison</h2>
+            <!-- Baseline: dog-agility -->
+            <table class="video-table">
+                <tr>
+                    <td class="video-cell">
+                        <div class="column-header">Reference video</div>
+                        <div class="video-container">
+                            <video controls autoplay loop muted playsinline class="video-item">
+                                <source src="assets/videos/baselines/dog-agility_dog/dog-agility_ref.mp4" type="video/mp4">
+                            </video>
+                        </div>
+                        
+                    </td>
+                    <td class="video-cell">
+                        <div class="column-header">DiTFlow</div>
+                        <div class="video-container">
+                            <video controls autoplay loop muted playsinline class="video-item">
+                                <source src="assets/videos/baselines/dog-agility_dog/dog-agility_ditflow.mp4" type="video/mp4">
+                            </video>
+                        </div>
+                    </td>
+                    <td class="video-cell">
+                        <div class="column-header">Injection <a href="#ref2">[2]</a></div>
+                        <div class="video-container">
+                            <video controls autoplay loop muted playsinline class="video-item">
+                                <source src="assets/videos/baselines/dog-agility_dog/dog-agility_injection.mp4" type="video/mp4">
+                            </video>
+                        </div>
+                    </td>
+                </tr>
+
+                <tr>
+                    <td class="video-cell">
+                        <div class="prompt-text">
+                            Dog running between poles in an agility course
+                        </div>
+                    </td>
+                    <td class="video-cell">
+                        <div class="video-container">
+                            <video controls autoplay loop muted playsinline class="video-item">
+                                <source src="assets/videos/baselines/dog-agility_dog/dog-agility_smm.mp4" type="video/mp4">
+                            </video>
+                        </div>
+                        <div class="column-header">SMM <a href="#ref3">[3]</a></div>
+                    </td>
+                    <td class="video-cell">
+                        <div class="video-container">
+                            <video controls autoplay loop muted playsinline class="video-item">
+                                <source src="assets/videos/baselines/dog-agility_dog/dog-agility_moft.mp4" type="video/mp4">
+                            </video>
+                        </div>
+                        <div class="column-header">MOFT <a href="#ref2">[2]</a></div>
+                    </td>
+                </tr>
+            </table>
+
+            <!-- Baseline: bear -->
+            <table class="video-table">
+                <tr>
+                    <td class="video-cell">
+                        <div class="column-header">Reference video</div>
+                        <div class="video-container">
+                            <video controls autoplay loop muted playsinline class="video-item">
+                                <source src="assets/videos/baselines/libby_bear/libby_ref.mp4" type="video/mp4">
+                            </video>
+                        </div>
+                        
+                    </td>
+                    <td class="video-cell">
+                        <div class="column-header">DiTFlow</div>
+                        <div class="video-container">
+                            <video controls autoplay loop muted playsinline class="video-item">
+                                <source src="assets/videos/baselines/libby_bear/libby_ditflow.mp4" type="video/mp4">
+                            </video>
+                        </div>
+                    </td>
+                    <td class="video-cell">
+                        <div class="column-header">Injection <a href="#ref2">[2]</a></div>
+                        <div class="video-container">
+                            <video controls autoplay loop muted playsinline class="video-item">
+                                <source src="assets/videos/baselines/libby_bear/libby_injection.mp4" type="video/mp4">
+                            </video>
+                        </div>
+                    </td>
+                </tr>
+
+                <tr>
+                    <td class="video-cell">
+                        <div class="prompt-text">
+                            Bear running in a garden
+                        </div>
+                    </td>
+                    <td class="video-cell">
+                        <div class="video-container">
+                            <video controls autoplay loop muted playsinline class="video-item">
+                                <source src="assets/videos/baselines/libby_bear/libby_smm.mp4" type="video/mp4">
+                            </video>
+                        </div>
+                        <div class="column-header">SMM <a href="#ref3">[3]</a></div>
+                    </td>
+                    <td class="video-cell">
+                        <div class="video-container">
+                            <video controls autoplay loop muted playsinline class="video-item">
+                                <source src="assets/videos/baselines/libby_bear/libby_moft.mp4" type="video/mp4">
+                            </video>
+                        </div>
+                        <div class="column-header">MOFT <a href="#ref2">[2]</a></div>
+                    </td>
+                </tr>
+            </table>
+
+            <!-- Baseline: paragliding -->
+            <table class="video-table">
+                <tr>
+                    <td class="video-cell">
+                        <div class="column-header">Reference video</div>
+                        <div class="video-container">
+                            <video controls autoplay loop muted playsinline class="video-item">
+                                <source src="assets/videos/baselines/paragliding_parachute/paragliding_ref.mp4" type="video/mp4">
+                            </video>
+                        </div>
+                        
+                    </td>
+                    <td class="video-cell">
+                        <div class="column-header">DiTFlow</div>
+                        <div class="video-container">
+                            <video controls autoplay loop muted playsinline class="video-item">
+                                <source src="assets/videos/baselines/paragliding_parachute/paragliding_ditflow.mp4" type="video/mp4">
+                            </video>
+                        </div>
+                    </td>
+                    <td class="video-cell">
+                        <div class="column-header">Injection <a href="#ref2">[2]</a></div>
+                        <div class="video-container">
+                            <video controls autoplay loop muted playsinline class="video-item">
+                                <source src="assets/videos/baselines/paragliding_parachute/paragliding_injection.mp4" type="video/mp4">
+                            </video>
+                        </div>
+                    </td>
+                </tr>
+
+                <tr>
+                    <td class="video-cell">
+                        <div class="prompt-text">
+                            Parachuting over a city, aerial view from above
+                        </div>
+                    </td>
+                    <td class="video-cell">
+                        <div class="video-container">
+                            <video controls autoplay loop muted playsinline class="video-item">
+                                <source src="assets/videos/baselines/paragliding_parachute/paragliding_smm.mp4" type="video/mp4">
+                            </video>
+                        </div>
+                        <div class="column-header">SMM <a href="#ref3">[3]</a></div>
+                    </td>
+                    <td class="video-cell">
+                        <div class="video-container">
+                            <video controls autoplay loop muted playsinline class="video-item">
+                                <source src="assets/videos/baselines/paragliding_parachute/paragliding_moft.mp4" type="video/mp4">
+                            </video>
+                        </div>
+                        <div class="column-header">MOFT <a href="#ref2">[2]</a></div>
+                    </td>
+                </tr>
+            </table>
+        </section>
+
+        <section id="ablation">
+            <h2>Ablation results</h2>
+            CogVideoX-5B ablations run over all prompt categories on 14 unique videos: blackswan car-turn bmx-bumps bmx-trees dog flamingo mtb-race chamaleon dog-gooses dogs-jump gold-fish hoverboard motorbike paragliding. Samples shown for the following reference video and prompt.
+            <table class="video-table">
+                <tr>
+                    <td class="video-cell">
+                        <div class="column-header">Reference video</div>
+                        <div class="video-container">
+                            <video controls autoplay loop muted playsinline class="video-item">
+                                <source src="assets/videos/ablations/leopard_ref.mp4" type="video/mp4">
+                            </video>
+                        </div>
+                    </td>
+                    <td class="video-cell">
+                        <div class="video-container">
+                            <div class="prompt-text">
+                                Leopard running up a snowy hill in a forest
+                            </div>
+                        </div>
+                    </td>
+                </tr>
+            </table>   
+
+            <h3 align="center">DiT Block used for guidance</h3>
+            <table class="video-table">
+                <tr>
+                    <td class="video-cell">
+                        <div class="column-header">Block 0</div>
+                        <div class="video-container">
+                            <video controls autoplay loop muted playsinline class="video-item">
+                                <source src="assets/videos/ablations/blocks/leopard_block0.mp4" type="video/mp4">
+                            </video>
+                        </div>
+                    </td>
+                    <td class="video-cell">
+                        <div class="column-header">Block 10</div>
+                        <div class="video-container">
+                            <video controls autoplay loop muted playsinline class="video-item">
+                                <source src="assets/videos/ablations/blocks/leopard_block10.mp4" type="video/mp4">
+                            </video>
+                        </div>
+                    </td>
+                    <td class="video-cell">
+                        <div class="column-header">Block 20</div>
+                        <div class="video-container">
+                            <video controls autoplay loop muted playsinline class="video-item">
+                                <source src="assets/videos/ablations/blocks/leopard_block20.mp4" type="video/mp4">
+                            </video>
+                        </div>
+                    </td>
+                    <td class="video-cell">
+                        <div class="column-header">Block 30</div>
+                        <div class="video-container">
+                            <video controls autoplay loop muted playsinline class="video-item">
+                                <source src="assets/videos/ablations/blocks/leopard_block30.mp4" type="video/mp4">
+                            </video>
+                        </div>
+                    </td>
+                </tr>
+            </table>
+
+            <h3 align="center">Percentage of denoising steps that are guided</h3>
+            <table class="video-table">
+                <tr>
+                    <td class="video-cell">
+                        <div class="column-header">0%</div>
+                        <div class="video-container">
+                            <video controls autoplay loop muted playsinline class="video-item">
+                                <source src="assets/videos/ablations/timesteps/leopard_t0.mp4" type="video/mp4">
+                            </video>
+                        </div>
+                    </td>
+                    <td class="video-cell">
+                        <div class="column-header">20%</div>
+                        <div class="video-container">
+                            <video controls autoplay loop muted playsinline class="video-item">
+                                <source src="assets/videos/ablations/timesteps/leopard_t20.mp4" type="video/mp4">
+                            </video>
+                        </div>
+                    </td>
+                    <td class="video-cell">
+                        <div class="column-header">40%</div>
+                        <div class="video-container">
+                            <video controls autoplay loop muted playsinline class="video-item">
+                                <source src="assets/videos/ablations/timesteps/leopard_t40.mp4" type="video/mp4">
+                            </video>
+                        </div>
+                    </td>
+                </tr>
+            </table>
+
+            <table class="video-table">
+                <tr>
+                    <td class="video-cell">
+                        <div class="column-header">60%</div>
+                        <div class="video-container">
+                            <video controls autoplay loop muted playsinline class="video-item">
+                                <source src="assets/videos/ablations/timesteps/leopard_t60.mp4" type="video/mp4">
+                            </video>
+                        </div>
+                    </td>
+                    <td class="video-cell">
+                        <div class="column-header">80%</div>
+                        <div class="video-container">
+                            <video controls autoplay loop muted playsinline class="video-item">
+                                <source src="assets/videos/ablations/timesteps/leopard_t80.mp4" type="video/mp4">
+                            </video>
+                        </div>
+                    </td>
+                    <td class="video-cell">
+                        <div class="column-header">100%</div>
+                        <div class="video-container">
+                            <video controls autoplay loop muted playsinline class="video-item">
+                                <source src="assets/videos/ablations/timesteps/leopard_t100.mp4" type="video/mp4">
+                            </video>
+                        </div>
+                    </td>
+                </tr>
+            </table>
+            
+            
+            <h3 align="center">Number of optimization steps</h3>
+            <table class="video-table">
+                <tr>
+                    <td class="video-cell">
+                        <div class="column-header">1 step</div>
+                        <div class="video-container">
+                            <video controls autoplay loop muted playsinline class="video-item">
+                                <source src="assets/videos/ablations/nsteps/leopard_nsteps1.mp4" type="video/mp4">
+                            </video>
+                        </div>
+                    </td>
+                    <td class="video-cell">
+                        <div class="column-header">5 steps</div>
+                        <div class="video-container">
+                            <video controls autoplay loop muted playsinline class="video-item">
+                                <source src="assets/videos/ablations/nsteps/leopard_nsteps5.mp4" type="video/mp4">
+                            </video>
+                        </div>
+                    </td>
+                    <td class="video-cell">
+                        <div class="column-header">10 steps</div>
+                        <div class="video-container">
+                            <video controls autoplay loop muted playsinline class="video-item">
+                                <source src="assets/videos/ablations/nsteps/leopard_nsteps10.mp4" type="video/mp4">
+                            </video>
+                        </div>
+                    </td>
+                </tr>
+            </table>
+
+        </section>
+
+        <section id="2b-results">
+            <h2>CogVideoX-2B results</h2>
+            <table class="video-table">
+                <tr>
+                    <td class="video-cell">
+                        <div class="column-header">Reference video</div>
+                        <div class="video-container">
+                            <video controls autoplay loop muted playsinline class="video-item">
+                                <source src="assets/videos/2b_outputs/car-roundabout/car-roundabout_ref.mp4" type="video/mp4">
+                            </video>
+                        </div>
+                    </td>
+                    <td class="video-cell">
+                        <div class="column-header">Generation 1</div>
+                        <div class="video-container">
+                            <video controls autoplay loop muted playsinline class="video-item">
+                                <source src="assets/videos/2b_outputs/car-roundabout/2b_car-roundabout_car.mp4" type="video/mp4">
+                            </video>
+                        </div>
+                        <div class="prompt-text">
+                            A gray mini cooper driving around a roundabout in a town
+                        </div>
+                    </td>
+                    <td class="video-cell">
+                        <div class="column-header">Generation 2</div>
+                        <div class="video-container">
+                            <video controls autoplay loop muted playsinline class="video-item">
+                                <source src="assets/videos/2b_outputs/car-roundabout/2b_car-roundabout_lion.mp4" type="video/mp4">
+                            </video>
+                        </div>
+                        <div class="prompt-text">
+                            A lion walking through a bustling roundabout, surrounded by vibrant city life
+                        </div>
+                    </td>
+                </tr>
+            </table>
+
+        </section>
+
+        <section id="dataset">
+            <h2>Dataset</h2>
+            We provide the prompts used (three categories) for each of the 50 DAVIS videos chosen. We sample 24 frames from each video.
+            <!-- Prompts Section -->
+            <div class="prompts-container">
+                <button class="prompts-toggle" onclick="togglePrompts()">Show/Hide Prompts</button>
+                <div id="prompts-content" class="prompts-content">
+                    <!-- Prompts will be loaded here -->
+                </div>
+            </div>
+        </section>
+
+
+        <h3>References</h3>
+        <div class="references">
+        <p id="ref1">[1] William Peebles and Saining Xie. Scalable diffusion models with transformers. In CVPR, 2023.</p>
+        <p id="ref2">[2] Zeqi Xiao, Yifan Zhou, Shuai Yang, and Xingang Pan. Video diffusion models are training-free motion interpreter and controller. arXiv preprint arXiv:2405.14864, 2024.</p>
+        <p id="ref3">[3] Danah Yatim, Rafail Fridman, Omer Bar-Tal, Yoni Kasten, and Tali Dekel. Space-time diffusion features for zero-shot text-driven motion transfer. In CVPR, 2024.</p>
+        <p id="ref4">[4] Michal Geyer, Omer Bar-Tal, Shai Bagon, and Tali Dekel. Tokenflow: Consistent diffusion features for consistent video editing. In ICLR, 2024.</p>
+        </div>
+
+        
+    </div>
+
+    <script>
+        function loadPrompts() {
+            const container = document.getElementById('prompts-content');
+            container.innerHTML = '';
+            
+            Object.entries(prompts).forEach(([category, types]) => {
+                const div = document.createElement('div');
+                div.className = 'prompt-category';
+                div.innerHTML = `
+                    <h3>${category}</h3>
+                    ${types.easy ? `<div class="prompt-type"><span>Caption:</span> ${types.easy}</div>` : ''}
+                    ${types.medium ? `<div class="prompt-type"><span>Subject:</span> ${types.medium}</div>` : ''}
+                    ${types.hard ? `<div class="prompt-type"><span>Scene:</span> ${types.hard}</div>` : ''}
+                `;
+                container.appendChild(div);
+            });
+        }
+
+        function togglePrompts() {
+            const content = document.getElementById('prompts-content');
+            if (content.style.display === 'none' || content.style.display === '') {
+                content.style.display = 'block';
+                loadPrompts();
+            } else {
+                content.style.display = 'none';
+            }
+        }
+        // Space bar control for all videos
+        document.addEventListener('keydown', function(event) {
+            if (event.code === 'Space') {
+                event.preventDefault();
+                document.querySelectorAll('video').forEach(video => {
+                    video.paused ? video.play() : video.pause();
+                });
+            } else if (event.code === 'KeyR') {
+                document.querySelectorAll('video').forEach(video => {
+                    video.currentTime = 0;
+                    video.pause();
+                });
+            }
+        });
+
+        const videoElements = document.querySelectorAll('.video-item');
+
+        videoElements.forEach(videoElement => {
+            videoElement.playbackRate = 0.4; // Set playback rate (0.4%)
+        });
+    </script>
+</body>
+</html>
